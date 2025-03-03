@@ -22,7 +22,7 @@ ADMIN_ID = 595160552758706187
 CURRENCY_CHANNEL_ID = 1292824634424819712
 
 # ID дополнительных каналов для очистки
-ADDITIONAL_CHANNELS = [1299347859828903977]
+ADDITIONAL_CHANNELS = [1299347859828903977, 1289934447453667462, 1345863315569512558]
 
 # Сопоставление валют и флагов
 currency_flags = {
@@ -30,8 +30,10 @@ currency_flags = {
     "UAH": '🇺🇦',
     "EUR": '🇪🇺',
     "USD": '🇺🇸',
-    "CZK": '🇨🇿'
+    "CZK": '🇨🇿',
+    "CNY": '🇨🇳'
 }
+
 
 def get_exchange_rates():
     url = "https://api.exchangerate-api.com/v4/latest/USD"
@@ -42,30 +44,33 @@ def get_exchange_rates():
         "UAH": data["rates"]["UAH"],
         "EUR": data["rates"]["EUR"],
         "USD": 1,
-        "CZK": data["rates"]["CZK"]
+        "CZK": data["rates"]["CZK"],
+        "CNY": data["rates"]["CNY"]
     }
     return rates
+
 
 async def delete_old_messages(channel):
     async for message in channel.history(limit=100):
         await message.delete()
 
+
 @bot.event
 async def on_ready():
     print(f'Бот {bot.user} запущен и готов к работе.')
 
-    # Сразу удаляем старые сообщения и отправляем курс валют
+    # Очистка и отправка курса валют
     currency_channel = bot.get_channel(CURRENCY_CHANNEL_ID)
     await delete_old_messages(currency_channel)
     await send_exchange_rates()
 
-    # Удаляем сообщения в дополнительных каналах
+    # Очистка дополнительных каналов
     for channel_id in ADDITIONAL_CHANNELS:
         channel = bot.get_channel(channel_id)
         if channel:
             await delete_old_messages(channel)
 
-    # Запускаем ежедневную задачу
+    # Запуск ежедневной задачи
     daily_tasks.start()
 
     try:
@@ -74,15 +79,28 @@ async def on_ready():
     except Exception as e:
         print(f"Ошибка синхронизации команд: {e}")
 
+
 @bot.event
 async def on_member_join(member):
     guild = member.guild
     temp_role = get(guild.roles, id=TEMP_ROLE_ID)
     await member.add_roles(temp_role)
     admin = bot.get_user(ADMIN_ID)
-    embed = discord.Embed(title="Новый участник",
-                          description=f"Участник {member.mention} присоединился к серверу.\nРазрешить ли ему вход?",
-                          color=discord.Color.blue())
+
+    try:
+        await member.send(
+            "Добро пожаловать на сервер **ВОСТОЧНЫЙ ФРОНТ**!\n\n"
+            "Производится проверка Ваших данных на разрешение пребывания на этом сервере. "
+            "Проверка может занять до 24 часов."
+        )
+    except discord.HTTPException:
+        print(f"Не удалось отправить сообщение {member.name}")
+
+    embed = discord.Embed(
+        title="Новый участник",
+        description=f"Участник {member.mention} присоединился к серверу.\nРазрешить ли ему вход?",
+        color=discord.Color.blue()
+    )
     message = await admin.send(embed=embed)
     await message.add_reaction('✅')
     await message.add_reaction('❌')
@@ -96,15 +114,28 @@ async def on_member_join(member):
             await member.remove_roles(temp_role)
             approved_role = get(guild.roles, id=APPROVED_ROLE_ID)
             await member.add_roles(approved_role)
+            try:
+                await member.send("Виза на въезд разрешена! Добро пожаловать!")
+            except discord.HTTPException:
+                pass
             await admin.send(f'Участник {member.mention} был принят на сервер.')
         elif str(reaction.emoji) == '❌':
+            try:
+                await member.send("Вам отказано в визе на въезд!")
+            except discord.HTTPException:
+                pass
             await member.kick(reason="Отклонено администратором.")
             await admin.send(f'Участник {member.mention} был кикнут с сервера.')
     except asyncio.TimeoutError:
         await member.remove_roles(temp_role)
         approved_role = get(guild.roles, id=APPROVED_ROLE_ID)
         await member.add_roles(approved_role)
+        try:
+            await member.send("Виза на въезд разрешена! Добро пожаловать!")
+        except discord.HTTPException:
+            pass
         await admin.send(f'Участник {member.mention} был автоматически принят на сервер спустя 24 часа.')
+
 
 @tasks.loop(hours=24)
 async def daily_tasks():
@@ -112,16 +143,15 @@ async def daily_tasks():
     next_run_time = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
     await asyncio.sleep((next_run_time - now).total_seconds())
 
-    # Очистка канала курса валют и отправка новых данных
     currency_channel = bot.get_channel(CURRENCY_CHANNEL_ID)
     await delete_old_messages(currency_channel)
     await send_exchange_rates()
 
-    # Очистка дополнительных каналов
     for channel_id in ADDITIONAL_CHANNELS:
         channel = bot.get_channel(channel_id)
         if channel:
             await delete_old_messages(channel)
+
 
 async def send_exchange_rates():
     channel = bot.get_channel(CURRENCY_CHANNEL_ID)
@@ -132,6 +162,7 @@ async def send_exchange_rates():
         embed.add_field(name=f"{flag} {currency}", value=f"{rate}", inline=False)
     await channel.send(embed=embed)
 
+
 @bot.tree.command(name="kurs", description="Получить курс валют")
 async def kurs(interaction: discord.Interaction, amount: float):
     rates = get_exchange_rates()
@@ -140,11 +171,12 @@ async def kurs(interaction: discord.Interaction, amount: float):
     await interaction.response.send_message(embed=embed)
     message = await interaction.original_response()
 
-    for flag in ['🇷🇺', '🇺🇦', '🇪🇺', '🇺🇸', '🇨🇿', '❌']:
+    for flag in ['🇷🇺', '🇺🇦', '🇪🇺', '🇺🇸', '🇨🇿', '🇨🇳', '❌']:
         await message.add_reaction(flag)
 
     def check(reaction, user):
-        return user == interaction.user and str(reaction.emoji) in ['🇷🇺', '🇺🇦', '🇪🇺', '🇺🇸', '🇨🇿', '❌'] and reaction.message.id == message.id
+        return user == interaction.user and str(reaction.emoji) in ['🇷🇺', '🇺🇦', '🇪🇺', '🇺🇸', '🇨🇿', '🇨🇳',
+                                                                    '❌'] and reaction.message.id == message.id
 
     try:
         reaction, user = await bot.wait_for('reaction_add', timeout=60, check=check)
@@ -155,7 +187,7 @@ async def kurs(interaction: discord.Interaction, amount: float):
             return
 
         currency_map = {
-            '🇷🇺': 'RUB', '🇺🇦': 'UAH', '🇪🇺': 'EUR', '🇺🇸': 'USD', '🇨🇿': 'CZK'
+            '🇷🇺': 'RUB', '🇺🇦': 'UAH', '🇪🇺': 'EUR', '🇺🇸': 'USD', '🇨🇿': 'CZK', '🇨🇳': "CNY"
         }
         selected_currency = currency_map[str(reaction.emoji)]
         embed = discord.Embed(title=f"Курс валют для {amount} {selected_currency}", color=discord.Color.green())
@@ -168,4 +200,5 @@ async def kurs(interaction: discord.Interaction, amount: float):
         await message.delete()
         await interaction.followup.send("Время ожидания истекло. Попробуйте снова.")
 
-bot.run('')
+
+bot.run('token')

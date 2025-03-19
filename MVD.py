@@ -199,4 +199,4 @@ async def kurs(interaction: discord.Interaction, amount: float):
         await interaction.followup.send("Время ожидания истекло. Попробуйте снова.")
 
 
-bot.run('MTI4OTkxMDY5MDAwNTY1MTUyMA.Gdsal5.HRYuSJCV3DFeKRA6lovPVysgonPLKogKePvGh0')
+bot.run('token')

@@ -127,14 +127,12 @@ async def on_member_join(member):
             await member.kick(reason="Отклонено администратором.")
             await admin.send(f'Участник {member.mention} был кикнут с сервера.')
     except asyncio.TimeoutError:
-        await member.remove_roles(temp_role)
-        approved_role = get(guild.roles, id=APPROVED_ROLE_ID)
-        await member.add_roles(approved_role)
-        try:
-            await member.send("Виза на въезд разрешена! Добро пожаловать!")
-        except discord.HTTPException:
-            pass
-        await admin.send(f'Участник {member.mention} был автоматически принят на сервер спустя 24 часа.')
+            try:
+                await member.send("Время проверки истекло. Вы были автоматически исключены с сервера.")
+            except discord.HTTPException:
+                pass
+            await member.kick(reason="Автоматическое исключение по истечении 24 часов без ответа от администратора.")
+            await admin.send(f'Участник {member.mention} был автоматически исключён с сервера спустя 24 часа.')
 
 
 @tasks.loop(hours=24)
@@ -201,4 +199,4 @@ async def kurs(interaction: discord.Interaction, amount: float):
         await interaction.followup.send("Время ожидания истекло. Попробуйте снова.")
 
 
-bot.run('token')
+bot.run('MTI4OTkxMDY5MDAwNTY1MTUyMA.Gdsal5.HRYuSJCV3DFeKRA6lovPVysgonPLKogKePvGh0')

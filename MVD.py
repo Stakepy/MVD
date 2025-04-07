@@ -237,5 +237,27 @@ async def ban(interaction: discord.Interaction, user: discord.Member, reason: st
             ephemeral=True
         )
 
+@bot.tree.command(name="ukaz", description="Отправить личное сообщение участнику")
+@app_commands.describe(user="Пользователь, которому отправить сообщение", message="Сообщение для отправки")
+@app_commands.guild_only()
+async def ukaz(interaction: discord.Interaction, user: discord.User, message: str):
+    # Проверка: является ли пользователь тобой или имеет нужную роль
+    has_permission = interaction.user.id == ADMIN_ID or any(
+        role.id == 595160552758706187 for role in getattr(interaction.user, "roles", [])
+    )
+
+    if not has_permission:
+        return await interaction.response.send_message(
+            "❌ У вас нет прав для использования этой команды.", ephemeral=True
+        )
+
+    try:
+        await user.send(message)
+        await interaction.response.send_message(f"✅ Сообщение отправлено {user.mention}", ephemeral=True)
+    except Exception as e:
+        await interaction.response.send_message(
+            f"⚠️ Не удалось отправить сообщение: {e}", ephemeral=True
+        )
+
 
 bot.run('token')
